@@ -1,0 +1,12 @@
+import { spawnSync } from 'node:child_process';
+import { configuration } from './firebase-build.mjs';
+import { cliEnv } from './firebase-cli.mjs';
+const {config}=await configuration();
+if(config.emulators||config.projectId.startsWith('demo-'))throw new Error('Un vrai projet et FIREBASE_USE_EMULATORS=false sont requis pour publier.');
+const extras=process.argv.slice(2);
+if(extras.some(arg=>arg!=='--non-interactive'))throw new Error('Seule l’option --non-interactive est acceptée. Le projet et les cibles viennent de la configuration contrôlée.');
+const built=spawnSync(process.execPath,['scripts/firebase-build.mjs'],{stdio:'inherit'});
+if(built.status!==0)process.exit(built.status||1);
+const result=spawnSync(process.execPath,['node_modules/firebase-tools/lib/bin/firebase.js','deploy','--project',config.projectId,'--config','.firebase-deploy.json','--only','hosting,firestore:rules,firestore:indexes',...extras],{env:cliEnv,stdio:'inherit'});
+if(result.error)throw result.error;
+process.exit(result.status??1);

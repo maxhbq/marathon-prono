@@ -1,0 +1,21 @@
+<!doctype html>
+<html lang="fr">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="theme-color" content="#193d30">
+  <meta name="description" content="Tes potes courent. À toi de jouer : pronostics entre amis, temps et classement du marathon.">
+  <title>Les 18 Bornes · Le marathon entre potes</title>
+  <link rel="icon" href="/favicon.svg" type="image/svg+xml">
+  <link rel="stylesheet" href="/styles.css">
+  <script src="/firebase-config.js"></script>
+  <script src="/app.js" defer></script>
+</head>
+<body>
+  <div id="app"><main class="loading"><span class="brand-mark">18</span><p>On rejoint la ligne de départ…</p></main></div>
+  <div id="toast" role="status" aria-live="polite"></div>
+  <dialog id="auth-dialog" aria-labelledby="auth-title"></dialog>
+  <dialog id="confirm-dialog" aria-labelledby="confirm-title"></dialog>
+  <noscript>Active JavaScript pour classer les coureurs et enregistrer tes pronostics.</noscript>
+</body>
+</html>

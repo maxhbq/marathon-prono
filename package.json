@@ -1,0 +1,35 @@
+{
+  "name": "les-18-bornes",
+  "version": "1.0.0",
+  "private": true,
+  "type": "module",
+  "engines": {
+    "node": ">=24"
+  },
+  "scripts": {
+    "start": "node server.js",
+    "dev": "node --watch server.js",
+    "admin": "node admin.js",
+    "test": "node --test",
+    "check": "node --check server.js && node --check public/app.js && node --check domain.js && node --check db.js && node --check admin.js && node --check backup.js && node --check firebase/client.js && node --check scripts/firebase-build.mjs && node --check scripts/firebase-deploy.mjs && node --check scripts/firebase-cli.mjs && node --check scripts/firebase-emulators.mjs && node --check scripts/firebase-reset-password.mjs",
+    "backup": "node backup.js",
+    "firebase:build": "node scripts/firebase-build.mjs",
+    "firebase:deploy": "node scripts/firebase-deploy.mjs",
+    "firebase:login": "node scripts/firebase-cli.mjs login --no-localhost",
+    "firebase:emulators": "node scripts/firebase-emulators.mjs start",
+    "firebase:test": "node scripts/firebase-emulators.mjs test",
+    "firebase:build:demo": "node scripts/firebase-build.mjs --demo",
+    "firebase:reset-password": "node scripts/firebase-reset-password.mjs",
+    "firebase:prepare-emulator": "python scripts/prepare-firestore-emulator.py",
+    "firebase:test:browser": "node scripts/firebase-emulators.mjs browser"
+  },
+  "dependencies": {
+    "firebase": "^13.0.0"
+  },
+  "devDependencies": {
+    "@firebase/rules-unit-testing": "^6.0.0",
+    "esbuild": "^0.28.2",
+    "firebase-admin": "^14.5.0",
+    "firebase-tools": "^15.34.0"
+  }
+}

@@ -1,0 +1,100 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+    function signedIn() { return request.auth != null; }
+    function admin() { return signedIn() && exists(/databases/$(database)/documents/admins/$(request.auth.uid)) && get(/databases/$(database)/documents/admins/$(request.auth.uid)).data.enabled == true; }
+    function race(id) { return get(/databases/$(database)/documents/races/$(id)).data; }
+    function closed(r) { return r.closed || (r.starts_at != null && request.time >= r.starts_at); }
+    function validRace(r) {
+      return r.keys().hasOnly(['id','race_name','starts_at','closed','published','roster_version','runner_ids','prediction_count','submission_count','next_runner_id'])
+        && r.id is int && r.race_name is string && r.race_name.size() > 0 && r.race_name.size() <= 80
+        && (r.starts_at == null || r.starts_at is timestamp) && r.closed is bool && r.published is bool
+        && r.roster_version is int && r.roster_version > 0
+        && r.runner_ids is list && r.runner_ids.size() <= 100 && r.runner_ids.toSet().size() == r.runner_ids.size()
+        && r.prediction_count is int && r.prediction_count >= 0
+        && r.submission_count is int && r.submission_count >= r.prediction_count
+        && r.next_runner_id is int && r.next_runner_id > 0;
+    }
+    function predictionPath(id) { return /databases/$(database)/documents/races/$(id)/predictions/$(request.auth.uid); }
+    function validPrediction(p,r) {
+      return signedIn() && !closed(r) && r.runner_ids.size() >= 2
+        && p.keys().hasOnly(['uid','username','order','times','roster_version','updated_at'])
+        && p.uid == request.auth.uid && p.username == get(/databases/$(database)/documents/users/$(request.auth.uid)).data.username
+        && p.roster_version == r.roster_version && p.updated_at == request.time
+        && p.order is list && p.order.size() == r.runner_ids.size()
+        && p.order.toSet() == r.runner_ids.toSet()
+        && p.times is string && p.times.size() == p.order.size() * 6
+        && p.times.matches('^((00:0[1-9]|00:[1-5][0-9]|0[1-9]:[0-5][0-9]|1[0-9]:[0-5][0-9]|2[0-3]:[0-5][0-9]|24:00),)+$');
+    }
+    function validCounterUpdate(id) {
+      let before = resource.data;
+      let after = request.resource.data;
+      let existed = exists(predictionPath(id));
+      let previousValid = existed && get(predictionPath(id)).data.roster_version == before.roster_version;
+      return signedIn() && !closed(before)
+        && after.diff(before).affectedKeys().hasOnly(['prediction_count','submission_count'])
+        && validPrediction(getAfter(predictionPath(id)).data, before)
+        && after.prediction_count == before.prediction_count + (previousValid ? 0 : 1)
+        && after.submission_count == before.submission_count + (existed ? 0 : 1);
+    }
+    function countersMatch(id) {
+      let before = race(id);
+      let after = getAfter(/databases/$(database)/documents/races/$(id)).data;
+      let existed = exists(predictionPath(id));
+      let previousValid = existed && get(predictionPath(id)).data.roster_version == before.roster_version;
+      return after.prediction_count == before.prediction_count + (previousValid ? 0 : 1)
+        && after.submission_count == before.submission_count + (existed ? 0 : 1);
+    }
+    match /admins/{uid} {
+      allow get: if signedIn() && request.auth.uid == uid;
+      allow list, write: if false;
+    }
+    match /users/{uid} {
+      allow get: if signedIn() && (request.auth.uid == uid || admin());
+      allow list: if admin();
+      allow create: if signedIn() && request.auth.uid == uid
+        && request.resource.data.keys().hasOnly(['username','created_at'])
+        && request.resource.data.username is string
+        && request.resource.data.username.matches('^[A-Za-z0-9_.-]{3,30}$')
+        && request.auth.token.email == request.resource.data.username.lower() + '@pseudos.invalid'
+        && request.resource.data.created_at == request.time;
+      allow update, delete: if false;
+    }
+    match /races/{id} {
+      allow read: if true;
+      allow create: if admin() && validRace(request.resource.data);
+      allow update: if (admin() && validRace(request.resource.data)) || validCounterUpdate(id);
+      allow delete: if false;
+      match /runners/{runnerId} {
+        allow read: if true;
+        allow create: if admin() && !closed(race(id))
+          && request.resource.data.keys().hasOnly(['id','name','photo'])
+          && request.resource.data.id is int && request.resource.data.name is string
+          && request.resource.data.name.size() > 0 && request.resource.data.name.size() <= 60
+          && request.resource.data.photo == null;
+        allow update: if admin()
+          && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['name','photo'])
+          && request.resource.data.name is string && request.resource.data.name.size() > 0 && request.resource.data.name.size() <= 60
+          && (request.resource.data.photo == null || (request.resource.data.photo is string && request.resource.data.photo.size() <= 180000 && request.resource.data.photo.matches('^data:image/jpeg;base64,[A-Za-z0-9+/=]+$')));
+        allow delete: if admin() && !closed(race(id));
+      }
+      match /predictions/{uid} {
+        allow get: if (signedIn() && request.auth.uid == uid) || closed(race(id));
+        allow list: if closed(race(id));
+        allow create, update: if signedIn() && request.auth.uid == uid
+          && validPrediction(request.resource.data,race(id)) && countersMatch(id);
+        allow delete: if false;
+      }
+      match /private/results {
+        allow get: if admin() || race(id).published;
+        allow list: if false;
+        allow create, update: if admin() && closed(race(id)) && !race(id).published
+          && request.resource.data.keys().hasOnly(['items','updated_at'])
+          && request.resource.data.items is list && request.resource.data.items.size() == race(id).runner_ids.size()
+          && request.resource.data.updated_at == request.time;
+        allow delete: if false;
+      }
+    }
+    match /{document=**} { allow read, write: if false; }
+  }
+}

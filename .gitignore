@@ -1,0 +1,11 @@
+node_modules/
+.data/
+.env
+*.log
+
+.env.*
+!.env.example
+dist/
+.firebase/
+.firebase-deploy.json
+*-debug.log
